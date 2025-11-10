@@ -2,16 +2,18 @@
 
 Slack連携Todo管理CLI - ターミナル上で動作する軽量タスク管理ツール
 
-## 現在のステータス: Phase 1 MVP ✅
+## 現在のステータス: Phase 2 完成 ✅
 
-Phase 1では**ローカルタスク管理のみ**実装されています。
-Slack連携機能はPhase 2で実装予定です。
+**Slackブックマークと双方向同期**に対応しました！
+- Slackでブックマークした投稿 → 自動的にTodoとして追加
+- CLIでタスク完了/削除 → Slackのブックマークも削除
+- `todo list` 実行時に自動同期
 
 ---
 
 ## 機能
 
-### Phase 1 MVP (現在)
+### Phase 1 MVP ✅
 - ✅ タスク追加
 - ✅ タスク一覧表示
 - ✅ タスク完了
@@ -20,10 +22,12 @@ Slack連携機能はPhase 2で実装予定です。
 - ✅ 期日管理
 - ✅ ID自動採番（欠番なし）
 
-### Phase 2 (予定)
-- ⏳ Slackブックマーク連携
-- ⏳ 自動同期機能
-- ⏳ エラーハンドリング
+### Phase 2 Slack連携 ✅
+- ✅ Slackブックマーク連携
+- ✅ 自動同期機能（Pull/Push）
+- ✅ 環境変数によるトークン管理
+- ✅ エラーハンドリング & リトライ処理
+- ✅ オフライン時のフォールバック
 
 ---
 
@@ -50,6 +54,43 @@ pip3 install -e .
 ```bash
 pip3 install -r requirements.txt
 ```
+
+---
+
+## Slack連携セットアップ
+
+### 1. Slack OAuth Tokenを取得
+
+1. https://api.slack.com/apps にアクセス
+2. "Create New App" → "From scratch"
+3. App Name と Workspace を選択
+4. **OAuth & Permissions** → **User Token Scopes** に以下を追加:
+   - `bookmarks:read`
+   - `bookmarks:write`
+5. **Install App to Workspace** をクリック
+6. **User OAuth Token** (xoxp-から始まる)をコピー
+
+### 2. 環境変数を設定
+
+```bash
+# ~/.zshrc または ~/.bashrc に追加
+export SLACK_TOKEN="xoxp-your-token-here"
+
+# 設定を反映
+source ~/.zshrc  # または source ~/.bashrc
+```
+
+### 3. CLIセットアップを実行
+
+```bash
+todo setup
+```
+
+対話形式でSlackチャンネルIDを入力します：
+- チャンネルIDの確認方法: Slackでチャンネルを右クリック → "リンクをコピー"
+- URLの末尾が `C01ABC123` のような形式
+
+セットアップ完了後、`todo list` で自動的にSlackブックマークと同期されます。
 
 ---
 
@@ -181,15 +222,19 @@ todo-cli/
 ├── todo_cli/
 │   ├── main.py              # CLIエントリーポイント
 │   ├── core/
-│   │   ├── models.py        # データモデル
-│   │   ├── storage.py       # JSON読み書き
+│   │   ├── models.py        # データモデル（Task, Config）
+│   │   ├── storage.py       # JSON読み書き・ID採番
 │   │   └── utils.py         # ユーティリティ関数
+│   ├── services/            # Phase 2
+│   │   ├── slack_service.py # Slack API クライアント
+│   │   └── sync_service.py  # 同期ロジック
 │   └── views/
 │       ├── list_view.py     # 一覧表示
 │       └── summary_view.py  # サマリー表示
-├── tests/                   # テストコード（Phase 2で追加）
+├── tests/                   # テストコード（Phase 3で追加）
 ├── requirements.txt         # 依存関係
 ├── pyproject.toml          # プロジェクト設定
+├── todo                     # ラッパースクリプト
 └── README.md               # このファイル
 ```
 
@@ -203,17 +248,19 @@ todo-cli/
 - 期日管理
 - サマリー表示
 
-### Phase 2: Slack連携 (予定)
+### Phase 2: Slack連携 ✅ (完了)
 - Slackブックマーク連携
-- 自動同期
-- エラーハンドリング
-- リトライ処理
+- 自動同期（Pull/Push）
+- 環境変数によるトークン管理
+- エラーハンドリング & リトライ処理
+- オフライン時のフォールバック
 
-### Phase 3: 完成版 (予定)
+### Phase 3: テスト & 最適化 (予定)
 - 単体テスト
-- 統合テスト
+- 統合テスト（モック使用）
 - ドキュメント整備
 - パフォーマンス最適化
+- CI/CD構築
 
 ---
 
@@ -247,6 +294,15 @@ IssueまたはPull Requestをお待ちしています。
 ---
 
 ## 変更履歴
+
+### v0.2.0 (2025-11-10)
+- Phase 2: Slack連携機能実装
+- Slack API連携（bookmarks.list/remove）
+- 自動同期機能（Pull/Push）
+- setupコマンド追加
+- 環境変数によるトークン管理（SLACK_TOKEN）
+- エラーハンドリング & リトライ処理
+- --no-syncオプション追加（list コマンド）
 
 ### v0.1.0 (2025-11-10)
 - Phase 1 MVP リリース

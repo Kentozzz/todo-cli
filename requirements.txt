@@ -3,5 +3,5 @@ typer>=0.9.0
 pytest>=7.0.0
 pytest-cov>=4.0.0
 
-# Phase 2で追加予定:
-# requests>=2.31.0  # Slack API用
+# Phase 2: Slack連携
+requests>=2.31.0  # Slack API用

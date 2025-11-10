@@ -1,22 +1,27 @@
 """
 Todo CLI メインエントリーポイント
-Phase 1: MVP - ローカルタスク管理CLI
+Phase 2: Slack連携Todo管理CLI
 """
 import typer
+import os
 from typing import Optional
-from todo_cli.core.storage import TaskStorage
+from todo_cli.core.storage import TaskStorage, ConfigStorage
 from todo_cli.core.utils import parse_date, validate_task_id
 from todo_cli.views.list_view import render_task_list, render_task_list_with_status
 from todo_cli.views.summary_view import render_summary
+from todo_cli.services.sync_service import SyncService
+from todo_cli.services.slack_service import SlackAPIError
 
 app = typer.Typer(
     name="todo",
-    help="Slack連携Todo管理CLI (Phase 1: ローカル管理)",
+    help="Slack連携Todo管理CLI (Phase 2: Slack連携対応)",
     add_completion=False
 )
 
 # ストレージインスタンス
 storage = TaskStorage()
+config_storage = ConfigStorage()
+sync_service = SyncService(storage)
 
 
 @app.command()
@@ -47,12 +52,23 @@ def add(
 
 @app.command("list")
 def list_tasks(
-    all: bool = typer.Option(False, "--all", "-a", help="完了タスクも含めて表示")
+    all: bool = typer.Option(False, "--all", "-a", help="完了タスクも含めて表示"),
+    no_sync: bool = typer.Option(False, "--no-sync", help="Slack同期をスキップ")
 ):
     """
-    タスク一覧を表示
+    タスク一覧を表示（Slack連携時は自動同期）
     """
     try:
+        # Slack同期（設定済みの場合のみ）
+        if not no_sync and sync_service.is_slack_configured():
+            try:
+                added, deleted, errors = sync_service.pull_from_slack()
+                if added > 0 or deleted > 0:
+                    typer.echo(f"Slack同期: +{added}件 -{deleted}件")
+            except (ValueError, SlackAPIError) as e:
+                typer.echo(f"警告: Slack同期失敗（ローカルデータを表示）: {e}", err=True)
+
+        # タスク一覧表示
         if all:
             tasks = storage.load_all()
             render_task_list_with_status(tasks)
@@ -69,13 +85,27 @@ def done(
     task_id: str = typer.Argument(..., help="完了するタスクのID")
 ):
     """
-    タスクを完了状態にする
+    タスクを完了状態にする（Slack連携時はブックマークも削除）
     """
     # IDの検証
     id_int = validate_task_id(task_id)
     if not id_int:
         typer.echo(f"エラー: 無効なタスクIDです: {task_id}", err=True)
         raise typer.Exit(code=1)
+
+    # タスク情報を取得
+    task = storage.get_task_by_id(id_int)
+    if not task:
+        typer.echo(f"エラー: タスク #{id_int} が見つかりません", err=True)
+        raise typer.Exit(code=1)
+
+    # Slackブックマーク削除（設定済みの場合のみ）
+    if sync_service.is_slack_configured() and task.url:
+        try:
+            if sync_service.push_to_slack(task.url):
+                typer.echo("Slackブックマークを削除しました")
+        except (ValueError, SlackAPIError) as e:
+            typer.echo(f"警告: Slackブックマーク削除失敗: {e}", err=True)
 
     # タスクを完了
     try:
@@ -96,7 +126,7 @@ def delete(
     force: bool = typer.Option(False, "--force", "-f", help="確認なしで削除")
 ):
     """
-    タスクを完全削除
+    タスクを完全削除（Slack連携時はブックマークも削除）
     """
     # IDの検証
     id_int = validate_task_id(task_id)
@@ -117,6 +147,14 @@ def delete(
         if not confirm:
             typer.echo("削除をキャンセルしました")
             raise typer.Exit(code=0)
+
+    # Slackブックマーク削除（設定済みの場合のみ）
+    if sync_service.is_slack_configured() and task.url:
+        try:
+            if sync_service.push_to_slack(task.url):
+                typer.echo("Slackブックマークを削除しました")
+        except (ValueError, SlackAPIError) as e:
+            typer.echo(f"警告: Slackブックマーク削除失敗: {e}", err=True)
 
     # タスクを削除
     try:
@@ -145,12 +183,54 @@ def summary():
 
 
 @app.command()
+def setup():
+    """
+    Slack連携の初期設定
+    """
+    typer.echo("=== Slack連携 初期設定 ===\n")
+
+    # SLACK_TOKEN環境変数のチェック
+    if not os.getenv("SLACK_TOKEN"):
+        typer.echo("エラー: SLACK_TOKEN環境変数が設定されていません", err=True)
+        typer.echo("\n以下のコマンドでトークンを設定してください:")
+        typer.echo("  export SLACK_TOKEN=xoxp-your-token-here")
+        typer.echo("\nSlack OAuth Tokenの取得方法:")
+        typer.echo("  1. https://api.slack.com/apps にアクセス")
+        typer.echo("  2. アプリを作成（または既存のアプリを選択）")
+        typer.echo("  3. OAuth & Permissions → User Token Scopes に以下を追加:")
+        typer.echo("     - bookmarks:read")
+        typer.echo("     - bookmarks:write")
+        typer.echo("  4. Install App to Workspace → User OAuth Token をコピー")
+        raise typer.Exit(code=1)
+
+    # 接続テスト
+    typer.echo("Slack接続テスト中...")
+    success, message = sync_service.test_slack_connection()
+    if not success:
+        typer.echo(f"エラー: {message}", err=True)
+        raise typer.Exit(code=1)
+    typer.echo(f"✓ {message}\n")
+
+    # チャンネルID設定
+    channel_id = typer.prompt("SlackチャンネルID（例: C01ABC123）")
+
+    # 設定を保存
+    config = config_storage.load()
+    config.slack_channel_id = channel_id
+    config_storage.save(config)
+
+    typer.echo(f"\n✓ 設定を保存しました")
+    typer.echo(f"  チャンネルID: {channel_id}")
+    typer.echo(f"\nこれで 'todo list' コマンドでSlackブックマークと同期されます")
+
+
+@app.command()
 def version():
     """
     バージョン情報を表示
     """
-    typer.echo("todo-cli version 0.1.0 (Phase 1: MVP)")
-    typer.echo("ローカルタスク管理のみ対応")
+    typer.echo("todo-cli version 0.2.0 (Phase 2: Slack連携)")
+    typer.echo("Slackブックマークとの双方向同期対応")
 
 
 if __name__ == "__main__":

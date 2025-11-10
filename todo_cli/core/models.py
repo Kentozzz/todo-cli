@@ -81,10 +81,12 @@ class Config:
     設定データモデル（Phase 2で使用）
 
     Attributes:
-        slack_token: Slack OAuth Token（Phase 2で使用）
+        slack_token: Slack OAuth Token
+        slack_channel_id: Slackチャンネ ID（ブックマーク取得先）
         default_sort: デフォルトソート順（"due" | "created" | "id"）
     """
     slack_token: str = ""
+    slack_channel_id: str = ""
     default_sort: Literal["due", "created", "id"] = "due"
 
     def to_dict(self) -> dict:
