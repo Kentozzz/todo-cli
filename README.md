@@ -49,14 +49,17 @@ git clone <repository-url> todo-cli
 cd todo-cli
 ```
 
-2. 依存関係をインストール
+2. 依存関係をインストール（推奨）
 ```bash
 pip3 install -e .
 ```
 
+これで `todo` コマンドが使えるようになります。
+
 または、直接実行する場合:
 ```bash
 pip3 install -r requirements.txt
+# この場合は python3 -m todo_cli.main で実行
 ```
 
 ---
@@ -123,41 +126,41 @@ Slack APIへの接続をテストし、設定を完了します。
 
 #### タスク追加
 ```bash
-python3 -m todo_cli.main add "タスク名"
-python3 -m todo_cli.main add "タスク名" --due 11/15
+todo add "タスク名"
+todo add "タスク名" --due 11/15
 ```
 
 #### タスク一覧表示
 ```bash
 # 未完了タスクのみ表示
-python3 -m todo_cli.main list
+todo list
 
 # 完了タスクも含めて表示
-python3 -m todo_cli.main list --all
+todo list --all
 ```
 
 #### タスク完了
 ```bash
-python3 -m todo_cli.main done <id>
+todo done <id>
 ```
 
 #### タスク削除
 ```bash
 # 確認プロンプト付き
-python3 -m todo_cli.main delete <id>
+todo delete <id>
 
 # 確認なし
-python3 -m todo_cli.main delete <id> --force
+todo delete <id> --force
 ```
 
 #### サマリー表示
 ```bash
-python3 -m todo_cli.main summary
+todo summary
 ```
 
 #### バージョン確認
 ```bash
-python3 -m todo_cli.main version
+todo version
 ```
 
 ---
@@ -166,14 +169,14 @@ python3 -m todo_cli.main version
 
 ```bash
 # タスクを追加
-$ python3 -m todo_cli.main add "バグ修正: ログイン画面" --due 11/15
+$ todo add "バグ修正: ログイン画面" --due 11/15
 ✓ タスクを追加しました (ID: 1)
 
-$ python3 -m todo_cli.main add "ドキュメント更新" --due 11/20
+$ todo add "ドキュメント更新" --due 11/20
 ✓ タスクを追加しました (ID: 2)
 
 # タスク一覧を表示
-$ python3 -m todo_cli.main list
+$ todo list
 ID   | タイトル                    | 期日
 -----------------------------------------------------
 1    | バグ修正: ログイン画面          | 11/15
@@ -182,11 +185,11 @@ ID   | タイトル                    | 期日
 未完: 2件
 
 # タスクを完了
-$ python3 -m todo_cli.main done 1
+$ todo done 1
 ✓ タスク #1 を完了しました
 
 # サマリー表示
-$ python3 -m todo_cli.main summary
+$ todo summary
 Todo: 1件
 ```
 
@@ -197,25 +200,6 @@ Todo: 1件
 タスクデータは以下の場所に保存されます：
 ```
 ~/.todo-cli/tasks.json
-```
-
----
-
-## エイリアス設定（推奨）
-
-毎回 `python3 -m todo_cli.main` と入力するのは大変なので、エイリアスの設定を推奨します：
-
-### Bash/Zsh
-```bash
-# ~/.bashrc または ~/.zshrc に追加
-alias todo="python3 -m todo_cli.main"
-```
-
-設定後:
-```bash
-todo add "新しいタスク"
-todo list
-todo done 1
 ```
 
 ---
@@ -234,7 +218,7 @@ todo done 1
    - Regular Expression: `.*`
    - Action: Set User Variable
    - Variable: `todo_count`
-   - Value: `$(python3 -m todo_cli.main summary)`
+   - Value: `$(todo summary)`
 
 ---
 
