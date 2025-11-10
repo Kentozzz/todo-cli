@@ -4,10 +4,13 @@ Slack連携Todo管理CLI - ターミナル上で動作する軽量タスク管�
 
 ## 現在のステータス: Phase 2 完成 ✅
 
-**Slackブックマークと双方向同期**に対応しました！
-- Slackでブックマークした投稿 → 自動的にTodoとして追加
-- CLIでタスク完了/削除 → Slackのブックマークも削除
+**Slackリアクション（👀）と双方向同期**に対応しました！
+- Slackで 👀 `:eyes:` リアクションを付けた投稿 → 自動的にTodoとして追加
+- CLIでタスク完了/削除 → Slackのリアクションも自動削除
 - `todo list` 実行時に自動同期
+- キャッシュ機構搭載（1分以内の連続実行はAPI呼び出しなし）
+
+✅ **公式API使用**: `reactions.list` / `reactions.remove` を使用しています。
 
 ---
 
@@ -23,9 +26,10 @@ Slack連携Todo管理CLI - ターミナル上で動作する軽量タスク管�
 - ✅ ID自動採番（欠番なし）
 
 ### Phase 2 Slack連携 ✅
-- ✅ Slackブックマーク連携
+- ✅ Slackリアクション連携（公式API: reactions.list / reactions.remove）
 - ✅ 自動同期機能（Pull/Push）
 - ✅ 環境変数によるトークン管理
+- ✅ キャッシュ機構（1分間のRate limit対策）
 - ✅ エラーハンドリング & リトライ処理
 - ✅ オフライン時のフォールバック
 
@@ -65,8 +69,12 @@ pip3 install -r requirements.txt
 2. "Create New App" → "From scratch"
 3. App Name と Workspace を選択
 4. **OAuth & Permissions** → **User Token Scopes** に以下を追加:
-   - `bookmarks:read`
-   - `bookmarks:write`
+   - `reactions:read` （リアクション情報の取得）
+   - `reactions:write` （リアクションの削除）
+   - `channels:history` （パブリックチャンネルの履歴）
+   - `groups:history` （プライベートチャンネルの履歴）
+   - `im:history` （DMの履歴）
+   - `mpim:history` （グループDMの履歴）
 5. **Install App to Workspace** をクリック
 6. **User OAuth Token** (xoxp-から始まる)をコピー
 
@@ -83,14 +91,29 @@ source ~/.zshrc  # または source ~/.bashrc
 ### 3. CLIセットアップを実行
 
 ```bash
+# デフォルト絵文字（👀 :eyes:）を使用
 todo setup
+
+# または、別の絵文字を指定
+todo setup --emoji memo  # 📝 :memo: を使用
 ```
 
-対話形式でSlackチャンネルIDを入力します：
-- チャンネルIDの確認方法: Slackでチャンネルを右クリック → "リンクをコピー"
-- URLの末尾が `C01ABC123` のような形式
+Slack APIへの接続をテストし、設定を完了します。
 
-セットアップ完了後、`todo list` で自動的にSlackブックマークと同期されます。
+### 4. 使い方
+
+1. **Slackで 👀 `:eyes:` リアクションを付ける**
+   - Todo化したいメッセージに 👀 リアクションを付ける
+
+2. **CLIで確認**
+   ```bash
+   todo list  # 自動的に同期される
+   ```
+
+3. **完了したらタスクをdone**
+   ```bash
+   todo done 1  # Slackのリアクションも自動削除される
+   ```
 
 ---
 
@@ -249,9 +272,10 @@ todo-cli/
 - サマリー表示
 
 ### Phase 2: Slack連携 ✅ (完了)
-- Slackブックマーク連携
+- Slackリアクション連携（公式API使用）
 - 自動同期（Pull/Push）
 - 環境変数によるトークン管理
+- キャッシュ機構（Rate limit対策）
 - エラーハンドリング & リトライ処理
 - オフライン時のフォールバック
 
@@ -297,9 +321,11 @@ IssueまたはPull Requestをお待ちしています。
 
 ### v0.2.0 (2025-11-10)
 - Phase 2: Slack連携機能実装
-- Slack API連携（bookmarks.list/remove）
+- **Slackリアクション連携**（公式API: reactions.list / reactions.remove）
+- 👀 `:eyes:` 絵文字でTodo化（カスタマイズ可能）
 - 自動同期機能（Pull/Push）
-- setupコマンド追加
+- **キャッシュ機構**（1分間のRate limit対策）
+- setupコマンド追加（--emojiオプション対応）
 - 環境変数によるトークン管理（SLACK_TOKEN）
 - エラーハンドリング & リトライ処理
 - --no-syncオプション追加（list コマンド）

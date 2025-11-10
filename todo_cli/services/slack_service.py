@@ -1,6 +1,7 @@
 """
 Slack API サービス
-Phase 2: Slackブックマーク連携
+Phase 2（改訂版）: Slack リアクション連携
+公式API使用: reactions.list
 """
 import requests
 from typing import List, Dict, Optional, Any
@@ -9,13 +10,13 @@ import time
 
 
 @dataclass
-class SlackBookmark:
-    """Slackブックマークデータ"""
-    id: str
-    title: str
-    link: str
-    created: int  # Unix timestamp
-    channel_id: str
+class SlackReactionItem:
+    """Slackリアクション付きアイテムデータ"""
+    message_url: str      # メッセージのURL
+    title: str            # メッセージテキスト
+    timestamp: float      # Unix timestamp
+    channel_id: str       # チャンネルID
+    message_ts: str       # メッセージタイムスタンプ
 
 
 class SlackAPIError(Exception):
@@ -31,7 +32,7 @@ class SlackService:
         初期化
 
         Args:
-            token: Slack OAuth Token (xoxp-* または xoxb-*)
+            token: Slack OAuth Token (xoxp-*)
         """
         self.token = token
         self.base_url = "https://slack.com/api"
@@ -97,15 +98,16 @@ class SlackService:
 
         raise SlackAPIError("Max retries exceeded")
 
-    def list_bookmarks(self, channel_id: str) -> List[SlackBookmark]:
+    def list_reactions(self, emoji: str = "eyes", limit: int = 50) -> List[SlackReactionItem]:
         """
-        指定チャンネルのブックマーク一覧を取得
+        特定の絵文字リアクションを付けたアイテムを取得
 
         Args:
-            channel_id: チャンネルID（例: C01ABC123）
+            emoji: 絵文字名（例：eyes, memo, white_check_mark）
+            limit: 取得件数（デフォルト50）
 
         Returns:
-            List[SlackBookmark]: ブックマークのリスト
+            List[SlackReactionItem]: リアクション付きアイテムのリスト
 
         Raises:
             SlackAPIError: API呼び出し失敗時
@@ -113,37 +115,86 @@ class SlackService:
         try:
             data = self._request(
                 method="GET",
-                endpoint="bookmarks.list",
-                params={"channel_id": channel_id}
+                endpoint="reactions.list",
+                params={"limit": limit, "full": "true"}
             )
 
-            bookmarks = []
-            for item in data.get("bookmarks", []):
-                # linkタイプのブックマークのみ処理
-                if item.get("type") == "link":
-                    bookmark = SlackBookmark(
-                        id=item["id"],
-                        title=item.get("title", ""),
-                        link=item.get("link", ""),
-                        created=item.get("date_created", 0),
-                        channel_id=channel_id
-                    )
-                    bookmarks.append(bookmark)
+            reaction_items = []
+            for item in data.get("items", []):
+                # メッセージタイプのアイテムのみ処理
+                if item.get("type") != "message":
+                    continue
 
-            return bookmarks
+                message = item.get("message", {})
+                reactions = message.get("reactions", [])
+
+                # 指定された絵文字のリアクションがあるかチェック
+                has_target_emoji = any(
+                    r.get("name") == emoji and self._is_user_reacted(r)
+                    for r in reactions
+                )
+
+                if not has_target_emoji:
+                    continue
+
+                # メッセージテキストを取得
+                title = message.get("text", "")
+                if not title:
+                    title = "Untitled"
+
+                # チャンネル情報を取得
+                channel_id = item.get("channel", "")
+                message_ts = message.get("ts", "")
+
+                # パーマリンクを構築
+                permalink = message.get("permalink")
+                if not permalink and channel_id and message_ts:
+                    # パーマリンクがない場合は構築
+                    ts_for_url = message_ts.replace(".", "")
+                    permalink = f"https://slack.com/archives/{channel_id}/p{ts_for_url}"
+
+                if not permalink:
+                    continue
+
+                reaction_item = SlackReactionItem(
+                    message_url=permalink,
+                    title=title[:100],  # タイトルを100文字に制限
+                    timestamp=float(message_ts) if message_ts else 0.0,
+                    channel_id=channel_id,
+                    message_ts=message_ts
+                )
+                reaction_items.append(reaction_item)
+
+            return reaction_items
 
         except SlackAPIError:
             raise
         except Exception as e:
-            raise SlackAPIError(f"Failed to list bookmarks: {e}")
+            raise SlackAPIError(f"Failed to list reactions: {e}")
 
-    def remove_bookmark(self, channel_id: str, bookmark_id: str) -> bool:
+    def _is_user_reacted(self, reaction: Dict[str, Any]) -> bool:
         """
-        ブックマークを削除
+        認証ユーザーがリアクションしているかチェック
 
         Args:
-            channel_id: チャンネルID
-            bookmark_id: ブックマークID
+            reaction: リアクションオブジェクト
+
+        Returns:
+            bool: ユーザーがリアクションしている場合True
+        """
+        # reactions.listは認証ユーザーのリアクションのみ返すため、
+        # usersリストに自分が含まれているかチェック
+        users = reaction.get("users", [])
+        return len(users) > 0
+
+    def remove_reaction(self, emoji: str, channel: str, timestamp: str) -> bool:
+        """
+        リアクションを削除
+
+        Args:
+            emoji: 絵文字名
+            channel: チャンネルID
+            timestamp: メッセージタイムスタンプ
 
         Returns:
             bool: 削除成功時True
@@ -154,10 +205,11 @@ class SlackService:
         try:
             self._request(
                 method="POST",
-                endpoint="bookmarks.remove",
+                endpoint="reactions.remove",
                 json_data={
-                    "channel_id": channel_id,
-                    "bookmark_id": bookmark_id
+                    "name": emoji,
+                    "channel": channel,
+                    "timestamp": timestamp
                 }
             )
             return True
@@ -165,7 +217,7 @@ class SlackService:
         except SlackAPIError:
             raise
         except Exception as e:
-            raise SlackAPIError(f"Failed to remove bookmark: {e}")
+            raise SlackAPIError(f"Failed to remove reaction: {e}")
 
     def test_connection(self) -> bool:
         """

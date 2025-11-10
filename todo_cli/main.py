@@ -14,7 +14,7 @@ from todo_cli.services.slack_service import SlackAPIError
 
 app = typer.Typer(
     name="todo",
-    help="Slack連携Todo管理CLI (Phase 2: Slack連携対応)",
+    help="Slack連携Todo管理CLI (Phase 2: リアクション連携対応)",
     add_completion=False
 )
 
@@ -183,11 +183,13 @@ def summary():
 
 
 @app.command()
-def setup():
+def setup(
+    emoji: Optional[str] = typer.Option(None, "--emoji", "-e", help="使用する絵文字名（デフォルト: eyes）")
+):
     """
     Slack連携の初期設定
     """
-    typer.echo("=== Slack連携 初期設定 ===\n")
+    typer.echo("=== Slack リアクション連携 初期設定 ===\n")
 
     # SLACK_TOKEN環境変数のチェック
     if not os.getenv("SLACK_TOKEN"):
@@ -198,10 +200,21 @@ def setup():
         typer.echo("  1. https://api.slack.com/apps にアクセス")
         typer.echo("  2. アプリを作成（または既存のアプリを選択）")
         typer.echo("  3. OAuth & Permissions → User Token Scopes に以下を追加:")
-        typer.echo("     - bookmarks:read")
-        typer.echo("     - bookmarks:write")
+        typer.echo("     - reactions:read")
+        typer.echo("     - reactions:write")
+        typer.echo("     - channels:history")
+        typer.echo("     - groups:history")
+        typer.echo("     - im:history")
+        typer.echo("     - mpim:history")
         typer.echo("  4. Install App to Workspace → User OAuth Token をコピー")
         raise typer.Exit(code=1)
+
+    # 絵文字設定
+    if emoji:
+        config = config_storage.load()
+        config.reaction_emoji = emoji
+        config_storage.save(config)
+        typer.echo(f"✓ 使用絵文字を :{emoji}: に設定しました\n")
 
     # 接続テスト
     typer.echo("Slack接続テスト中...")
@@ -209,19 +222,14 @@ def setup():
     if not success:
         typer.echo(f"エラー: {message}", err=True)
         raise typer.Exit(code=1)
+
     typer.echo(f"✓ {message}\n")
-
-    # チャンネルID設定
-    channel_id = typer.prompt("SlackチャンネルID（例: C01ABC123）")
-
-    # 設定を保存
-    config = config_storage.load()
-    config.slack_channel_id = channel_id
-    config_storage.save(config)
-
-    typer.echo(f"\n✓ 設定を保存しました")
-    typer.echo(f"  チャンネルID: {channel_id}")
-    typer.echo(f"\nこれで 'todo list' コマンドでSlackブックマークと同期されます")
+    typer.echo("✓ Slack リアクション連携の設定が完了しました")
+    typer.echo("\n使い方:")
+    current_emoji = emoji or config_storage.load().reaction_emoji
+    typer.echo(f"  1. Slackで :{current_emoji}: リアクションを付ける")
+    typer.echo("  2. 'todo list' でTodoとして表示される")
+    typer.echo("  3. 'todo done <id>' で完了 → Slackのリアクションも自動削除")
 
 
 @app.command()
@@ -230,7 +238,7 @@ def version():
     バージョン情報を表示
     """
     typer.echo("todo-cli version 0.2.0 (Phase 2: Slack連携)")
-    typer.echo("Slackブックマークとの双方向同期対応")
+    typer.echo("Slackリアクション（👀）との双方向同期対応")
 
 
 if __name__ == "__main__":

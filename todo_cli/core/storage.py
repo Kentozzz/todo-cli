@@ -241,7 +241,13 @@ class ConfigStorage:
         try:
             with open(self.config_file, "r", encoding="utf-8") as f:
                 config_dict = json.load(f)
-                return Config.from_dict(config_dict)
+                # 既知のフィールドのみ抽出（後方互換性対応）
+                known_fields = {
+                    "slack_token": config_dict.get("slack_token", ""),
+                    "reaction_emoji": config_dict.get("reaction_emoji", "eyes"),
+                    "default_sort": config_dict.get("default_sort", "due")
+                }
+                return Config.from_dict(known_fields)
         except (FileNotFoundError, json.JSONDecodeError):
             return Config()
 

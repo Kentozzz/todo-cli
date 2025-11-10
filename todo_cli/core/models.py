@@ -81,12 +81,12 @@ class Config:
     設定データモデル（Phase 2で使用）
 
     Attributes:
-        slack_token: Slack OAuth Token
-        slack_channel_id: Slackチャンネ ID（ブックマーク取得先）
+        slack_token: Slack OAuth Token（現在は環境変数SLACK_TOKENを使用）
+        reaction_emoji: Slackリアクション連携で使用する絵文字（デフォルト: "eyes"）
         default_sort: デフォルトソート順（"due" | "created" | "id"）
     """
-    slack_token: str = ""
-    slack_channel_id: str = ""
+    slack_token: str = ""  # 後方互換性のため残すが、実際は使用しない
+    reaction_emoji: str = "eyes"  # デフォルトは👀（両目）
     default_sort: Literal["due", "created", "id"] = "due"
 
     def to_dict(self) -> dict:
