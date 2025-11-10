@@ -99,13 +99,13 @@ def done(
         typer.echo(f"エラー: タスク #{id_int} が見つかりません", err=True)
         raise typer.Exit(code=1)
 
-    # Slackブックマーク削除（設定済みの場合のみ）
+    # Slackリアクション削除（設定済みの場合のみ）
     if sync_service.is_slack_configured() and task.url:
         try:
             if sync_service.push_to_slack(task.url):
-                typer.echo("Slackブックマークを削除しました")
+                typer.echo("Slackリアクションを削除しました")
         except (ValueError, SlackAPIError) as e:
-            typer.echo(f"警告: Slackブックマーク削除失敗: {e}", err=True)
+            typer.echo(f"警告: Slackリアクション削除失敗: {e}", err=True)
 
     # タスクを完了
     try:
@@ -148,13 +148,13 @@ def delete(
             typer.echo("削除をキャンセルしました")
             raise typer.Exit(code=0)
 
-    # Slackブックマーク削除（設定済みの場合のみ）
+    # Slackリアクション削除（設定済みの場合のみ）
     if sync_service.is_slack_configured() and task.url:
         try:
             if sync_service.push_to_slack(task.url):
-                typer.echo("Slackブックマークを削除しました")
+                typer.echo("Slackリアクションを削除しました")
         except (ValueError, SlackAPIError) as e:
-            typer.echo(f"警告: Slackブックマーク削除失敗: {e}", err=True)
+            typer.echo(f"警告: Slackリアクション削除失敗: {e}", err=True)
 
     # タスクを削除
     try:
